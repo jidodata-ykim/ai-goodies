@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+#
+# tclip v3 - Copies tmux pane history to the system clipboard with robust
+#            fallback mechanisms. Engineered for correctness and portability.
+#
+set -Eeuo pipefail
+
+# --- Utility Functions --------------------------------------------------------
+msg() {
+  echo >&2 -e "$@"
+}
+
+die() {
+  msg "\e[31m[ERROR]\e[0m $1"
+  exit "${2:-1}"
+}
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [<target>]
+
+Copies the full scrollback history of a tmux pane to the system clipboard.
+
+<target> can be any valid tmux target (e.g., %id, window.pane, session:window.pane).
+If a bare number is given (e.g., 5), it is treated as a shortcut for window 5, pane 1 (5.1).
+If no target is specified, the current pane is used.
+
+Examples:
+  tclip        # Capture the current pane
+  tclip 2      # Capture pane 1 in window 2
+  tclip 3:0    # Capture pane 0 in window 3
+  tclip main:1.2 # Capture pane 2 in window 1 of session 'main'
+EOF
+  exit 0
+}
+
+# --- Core Logic Functions -----------------------------------------------------
+
+# Safely captures the pane content. The -J flag joins wrapped lines.
+capture_pane() {
+  tmux capture-pane -p -J -S - -E - -t "$1"
+}
+
+# Portable base64 encoding without line wraps. Detects GNU vs. BSD/macOS.
+b64_encode() {
+  if base64 --version &>/dev/null; then # GNU coreutils
+    base64 -w 0
+  else # macOS/BSD
+    base64
+  fi
+}
+
+main() {
+  [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage
+  [[ -n ${TMUX:-} ]] || die "This script must be run from within a tmux session."
+
+  # --- Target Resolution ---
+  # Default to the current pane if no argument is given.
+  local target_arg="${1:-}"
+  local target
+
+  if [[ -z "$target_arg" ]]; then
+    target="$(tmux display-message -p '#{pane_id}')"
+    msg "No target specified. Capturing current pane ($target)..."
+  else
+    # First, test if the argument is a valid target as-is.
+    if tmux display-message -p -t "$target_arg" &>/dev/null; then
+      target="$target_arg"
+      msg "Capturing specified target: $target..."
+    # If not, check for the numeric window shorthand (e.g., "5" -> "5.1").
+    elif [[ "$target_arg" =~ ^[0-9]+$ ]] && tmux display-message -p -t "${target_arg}.1" &>/dev/null; then
+      target="${target_arg}.1"
+      msg "Interpreted '$target_arg' as window target. Capturing pane $target..."
+    else
+      die "Target '$target_arg' is not a valid tmux pane."
+    fi
+  fi
+
+  # --- Clipboard Strategies (in order of preference) ---
+  # This declarative array makes adding/reordering strategies trivial.
+  local copiers=(
+    'command -v pbcopy &>/dev/null && capture_pane "$target" | pbcopy && echo "Copied via pbcopy (macOS)." && exit 0'
+    'command -v wl-copy &>/dev/null && capture_pane "$target" | wl-copy && echo "Copied via wl-copy (Wayland)." && exit 0'
+    'command -v xclip &>/dev/null && [[ -n ${DISPLAY:-} ]] && capture_pane "$target" | xclip -selection clipboard && echo "Copied via xclip (X11)." && exit 0'
+    'command -v clip.exe &>/dev/null && capture_pane "$target" | clip.exe && echo "Copied via clip.exe (WSL/Windows)." && exit 0'
+  )
+
+  msg "Searching for a clipboard tool..."
+  for copier in "${copiers[@]}"; do
+    eval "$copier" || true
+  done
+
+  # --- Fallback Strategies ---
+  msg "No standard clipboard tool found. Attempting fallback methods."
+
+  # Fallback 1: OSC52 sequence (for modern terminals).
+  if command -v base64 &>/dev/null; then
+    msg "Attempting to copy via OSC52 terminal sequence..."
+    
+    # Check content size for OSC52 warning
+    local content_size
+    content_size=$(capture_pane "$target" | wc -c)
+    if [[ $content_size -gt 100000 ]]; then
+      msg "\e[33m[WARNING]\e[0m Large content (${content_size} bytes) may exceed terminal OSC52 limits"
+    fi
+    
+    # Save to temp file as well
+    local tmpfile="/tmp/tclip-$$.txt"
+    capture_pane "$target" > "$tmpfile"
+    msg "Content also saved to: $tmpfile"
+    
+    # Send OSC52 sequence
+    local osc52_sequence
+    osc52_sequence="$(capture_pane "$target" | b64_encode)"
+    printf '\e]52;c;%s\a' "$osc52_sequence"
+    msg "OSC52 sequence sent. Your terminal must support this feature."
+    msg "Note: Verification of success is not possible from the script."
+    exit 0
+  fi
+
+  # Fallback 2: tmux buffer (most robust internal method).
+  msg "No base64 utility found for OSC52."
+  msg "Loading content into a new tmux buffer as a final fallback."
+  local buf_name="tclip-$(date +%s)"
+  capture_pane "$target" | tmux load-buffer -b "$buf_name" -
+  msg "\e[32m[SUCCESS]\e[0m Content loaded into tmux buffer: \e[1m$buf_name\e[0m"
+  msg "You can now paste it in tmux using: \e[1mCtrl-b ]\e[0m"
+  msg "To view buffers, use: \e[1mtmux list-buffers\e[0m"
+  msg "To save a buffer, use: \e[1mtmux save-buffer -b $buf_name <filename>\e[0m"
+}
+
+main "$@"

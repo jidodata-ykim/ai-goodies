@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#
+# tclip-newwin - Captures tmux pane using new window method
+#
+# This script creates a new window, runs tclip, then closes it
+
+set -euo pipefail
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Save current window
+CURRENT_WINDOW=$(tmux display-message -p '#{window_index}')
+
+# Determine target (default to current window's pane 1)
+TARGET="${1:-$CURRENT_WINDOW.1}"
+
+# Create new window and run tclip-original there
+tmux new-window -n "clipboard" "$SCRIPT_DIR/tclip-original $TARGET; sleep 2"
+
+# The window will close automatically after tclip completes

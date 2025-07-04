@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+#
+# tsnip-original v1 - Captures only the visible screen of a tmux pane to clipboard
+#
+set -Eeuo pipefail
+
+# --- Utility Functions --------------------------------------------------------
+msg() {
+  echo >&2 -e "$@"
+}
+
+die() {
+  msg "\e[31m[ERROR]\e[0m $1"
+  exit "${2:-1}"
+}
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [<target>]
+
+Captures only the VISIBLE portion of a tmux pane to the system clipboard.
+
+<target> can be any valid tmux target (e.g., %id, window.pane, session:window.pane).
+If a bare number is given (e.g., 5), it is treated as window 5, pane 1 (5.1).
+If no target is specified, the current pane is used.
+
+Examples:
+  tsnip        # Capture visible portion of current pane
+  tsnip 2      # Capture visible portion of window 2
+  tsnip 3:0    # Capture visible portion of pane 0 in window 3
+EOF
+  exit 0
+}
+
+# --- Core Logic Functions -----------------------------------------------------
+
+# Captures only the visible pane content (no scrollback)
+capture_visible_pane() {
+  # -p: print to stdout
+  # -J: join wrapped lines
+  # No -S or -E flags means capture only visible portion
+  tmux capture-pane -p -J -t "$1"
+}
+
+# Portable base64 encoding
+b64_encode() {
+  if base64 --version &>/dev/null; then
+    base64 -w 0
+  else
+    base64
+  fi
+}
+
+main() {
+  [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage
+  [[ -n ${TMUX:-} ]] || die "This script must be run from within a tmux session."
+
+  # --- Target Resolution ---
+  local target_arg="${1:-}"
+  local target
+
+  if [[ -z "$target_arg" ]]; then
+    target="$(tmux display-message -p '#{pane_id}')"
+    msg "Capturing visible screen of current pane ($target)..."
+  else
+    if tmux display-message -p -t "$target_arg" &>/dev/null; then
+      target="$target_arg"
+      msg "Capturing visible screen of target: $target..."
+    elif [[ "$target_arg" =~ ^[0-9]+$ ]] && tmux display-message -p -t "${target_arg}.1" &>/dev/null; then
+      target="${target_arg}.1"
+      msg "Capturing visible screen of window $target_arg..."
+    else
+      die "Target '$target_arg' is not a valid tmux pane."
+    fi
+  fi
+
+  # --- Clipboard Strategies ---
+  local copiers=(
+    'command -v pbcopy &>/dev/null && capture_visible_pane "$target" | pbcopy && echo "Copied visible screen via pbcopy." && exit 0'
+    'command -v wl-copy &>/dev/null && capture_visible_pane "$target" | wl-copy && echo "Copied visible screen via wl-copy." && exit 0'
+    'command -v xclip &>/dev/null && [[ -n ${DISPLAY:-} ]] && capture_visible_pane "$target" | xclip -selection clipboard && echo "Copied visible screen via xclip." && exit 0'
+    'command -v clip.exe &>/dev/null && capture_visible_pane "$target" | clip.exe && echo "Copied visible screen via clip.exe." && exit 0'
+  )
+
+  msg "Searching for a clipboard tool..."
+  for copier in "${copiers[@]}"; do
+    eval "$copier" || true
+  done
+
+  # --- Fallback: OSC52 ---
+  msg "No standard clipboard tool found. Using OSC52 fallback..."
+  
+  if command -v base64 &>/dev/null; then
+    local tmpfile="/tmp/tsnip-$$.txt"
+    capture_visible_pane "$target" > "$tmpfile"
+    msg "Visible screen saved to: $tmpfile"
+    
+    local osc52_sequence
+    osc52_sequence="$(capture_visible_pane "$target" | b64_encode)"
+    printf '\e]52;c;%s\a' "$osc52_sequence"
+    msg "OSC52 sequence sent for visible screen."
+    exit 0
+  fi
+
+  # --- Final Fallback: tmux buffer ---
+  msg "Loading visible screen into tmux buffer..."
+  local buf_name="tsnip-$(date +%s)"
+  capture_visible_pane "$target" | tmux load-buffer -b "$buf_name" -
+  msg "\e[32m[SUCCESS]\e[0m Visible screen loaded into tmux buffer: \e[1m$buf_name\e[0m"
+  msg "Paste with: \e[1mCtrl-b ]\e[0m"
+}
+
+main "$@"
