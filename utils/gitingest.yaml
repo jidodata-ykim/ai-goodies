@@ -1,0 +1,102 @@
+settings:
+  output_dir: ingested
+  token_counter: $HOME/.cargo/bin/tc
+  default_max_size: 10485760
+repositories:
+  lightrag:
+    source: lightrag
+    description: LightRAG - Knowledge Graph RAG system
+    exclusions:
+    - lightrag_webui/**
+    - lightrag/tools/**
+    - lightrag/api/webui/**
+    - lightrag/api/README.assets/**
+    - lightrag/api/README.md
+    - lightrag/api/README-zh.md
+    - README.assets/**
+    - assets/**
+    - '**/assets/**'
+    metadata:
+      last_updated: '20250623_221057'
+      token_count: 300645
+      character_count: 1370202
+      file_count: 202
+      last_file: lightrag_minimal_20250623_221057.md
+      profile: minimal
+      hash: 28ae6c4f
+  lancedb:
+    source: lancedb
+    description: LanceDB - Vector database built on Apache Arrow
+    exclusions:
+    - docs/
+    - '**/*.png'
+    - '**/*.jpg'
+    - '**/*.jpeg'
+    - '**/*.gif'
+    - '**/test/**'
+    - '**/tests/**'
+    - '**/node_modules/**'
+    - '**/.git/**'
+    - docs/src/assets/
+    - java/
+    - node/
+    - nodejs/
+    - rust/
+    metadata:
+      last_updated: '20250623_221041'
+      token_count: 201217
+      character_count: 874709
+      file_count: 6
+      last_file: lancedb_minimal_20250623_221041.md
+      profile: minimal
+      hash: aca495e8
+  autorag:
+    source: AutoRAG
+    description: AutoRAG - Automatic Retrieval Augmented Generation
+    exclusions:
+    - .git/
+    - tests/resources/
+    - docs/**/*.png
+    - docs/**/*.jpg
+    - docs/**/*.jpeg
+    - docs/**/*.gif
+    - docs/**/*.pdf
+    - docs/**/*.docx
+    - docs/source/_static/
+    - '**/__pycache__/**'
+    - '**/*.pyc'
+    - '**/.pytest_cache/**'
+    - uv.lock
+    metadata:
+      last_updated: '20250705_023151'
+      token_count: 438203
+      character_count: 1752813
+      file_count: 817
+      last_file: autorag_0.3.16_438k.md
+      profile: standard
+      hash: 8c3b81e2
+profiles:
+  minimal:
+    description: Minimal code-only profile
+    additional_exclusions:
+    - '**/*.md'
+    - '**/examples/**'
+    - '**/docs/**'
+    - '**/assets/**'
+    - '**/*.txt'
+  standard:
+    description: Standard profile with docs but no assets
+    additional_exclusions:
+    - '**/assets/**'
+    - '**/*.png'
+    - '**/*.jpg'
+    - '**/*.jpeg'
+    - '**/*.gif'
+  full:
+    description: Full profile with minimal exclusions
+    additional_exclusions:
+    - '**/node_modules/**'
+    - '**/.git/**'
+output_patterns:
+  default: '{repo_name}_{profile}_{timestamp}.md'
+  versioned: '{repo_name}_{profile}_v{version}.md'
