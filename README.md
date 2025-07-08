@@ -49,6 +49,22 @@ cat script.sh | tsnip -l bash
 tsnip script.py | tclip
 ```
 
+### Commands
+
+The `commands/` directory contains a collection of useful Claude Code commands for enhanced development workflows. These commands demonstrate effective prompt engineering techniques and provide streamlined workflows for common development tasks.
+
+**Available Commands:**
+- `commit-fast.md` - Quick commit workflow for rapid development
+- `commit.md` - Comprehensive commit process with proper formatting
+- `issue-create.md` - Create well-structured GitHub issues
+- `issue-understand.md` - Deep analysis of existing issues
+- `pr-create.md` - Streamlined pull request creation
+- `pr-review.md` - Comprehensive code review process
+- `pr-update.md` - Update and maintain pull requests
+- `task-implement.md` - Structured task implementation framework
+
+These commands showcase effective prompt engineering patterns and can be used as templates for your own Claude Code workflows.
+
 ### Tmux Configuration
 
 The `tmux.conf` file provides a modern, feature-rich tmux setup with:
