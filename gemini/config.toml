@@ -1,0 +1,30 @@
+# Gemini CLI Configuration
+# Copy this file to ~/.gemini/config.toml
+
+[auth]
+# API Key for authentication
+# Get your API key from Google AI Studio: https://ai.google.dev/gemini-api/docs/api-key
+api_key = "${GOOGLE_API_KEY}"
+
+# Use Vertex AI (optional, set to true if using Vertex AI)
+use_vertex_ai = false
+
+[model]
+# Default model to use
+name = "gemini-1.5-flash"
+
+# Temperature for response generation (0.0 to 1.0)
+temperature = 0.7
+
+# Maximum tokens in response
+max_tokens = 4096
+
+[cli]
+# Default output format (json, text, markdown)
+output_format = "markdown"
+
+# Enable verbose output
+verbose = false
+
+# Auto-confirm prompts (equivalent to -y flag)
+auto_confirm = false
